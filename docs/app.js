@@ -1041,13 +1041,17 @@ function setPlaying(on) {
   if (!on) return;
 
   const scroll = $('#ppScroll');
+  // Track position as a float: a per-frame `scrollTop += 0.8` is truncated on
+  // read-back, so the position never accumulates and nothing moves.
+  let pos = scroll.scrollTop;
   let last = null;
+
   const step = now => {
     if (last !== null) {
-      // speed 1–12 maps to roughly 12–150 px/second
-      const px = (+$('#ppSpeed').value * 12) * ((now - last) / 1000);
-      scroll.scrollTop += px;
-      if (scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 2)
+      // speed 1–12 maps to roughly 12–145 px/second
+      pos += (+$('#ppSpeed').value * 12) * ((now - last) / 1000);
+      scroll.scrollTop = pos;
+      if (pos + scroll.clientHeight >= scroll.scrollHeight - 2)
         return setPlaying(false);
     }
     last = now;

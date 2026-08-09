@@ -51,8 +51,16 @@ async function api(path, opts) {
 
 function demoApi(path) {
   const D = window.DEMO_DATA;
-  if (path.startsWith('/api/runs'))
-    return { runs: [{ date: D.date, count: D.shortlist.length, stats: D.stats }] };
+  if (path.startsWith('/api/runs')) {
+    const saved = JSON.parse(localStorage.getItem('demoState') || '{}');
+    return { runs: [{
+      date: D.date,
+      count: D.shortlist.length,
+      stats: D.stats,
+      top: D.shortlist[0]?.title || '',
+      decided: D.shortlist.filter(p => saved[p.uid]?.verdict).length,
+    }] };
+  }
   if (path.startsWith('/api/config')) return { config: D.config, ok: true };
   return {};
 }
