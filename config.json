@@ -4,10 +4,16 @@
   "max_per_source": 120,
   "max_pages": 10,
 
+  "contact_email": "",
+
   "topics": {
     "medicine": {
       "enabled": true,
       "europepmc_query": "(SRC:MED OR SRC:PPR) AND (HAS_ABSTRACT:y) AND (LANG:eng)",
+      "openalex_filter": "type:article,has_abstract:true,language:en,is_paratext:false,primary_location.source.type:journal,concepts.id:C71924100",
+      "crossref": true,
+      "semantic_scholar": true,
+      "preprint_servers": ["medrxiv"],
       "keywords": [
         "obesity", "diabetes", "cardiovascular", "cancer", "vitamin",
         "sleep", "exercise", "diet", "depression", "anxiety", "dementia",
@@ -15,13 +21,30 @@
         "blood pressure", "cholesterol", "fertility", "pregnancy", "longevity"
       ]
     },
+
+    "biology": {
+      "enabled": false,
+      "openalex_filter": "type:article,has_abstract:true,language:en,is_paratext:false,primary_location.source.type:journal,concepts.id:C86803240",
+      "preprint_servers": ["biorxiv"],
+      "keywords": ["ageing", "gene editing", "crispr", "stem cell", "immune", "neuron"]
+    },
+
     "ai_cs": {
       "enabled": true,
+      "openalex_filter": "type:article,has_abstract:true,language:en,is_paratext:false,primary_location.source.type:journal,concepts.id:C41008148",
       "arxiv_categories": ["cs.AI", "cs.CL", "cs.LG", "cs.CY"],
+      "crossref": false,
+      "semantic_scholar": true,
       "keywords": [
         "large language model", "reasoning", "agent", "benchmark",
         "safety", "alignment", "education", "medical", "arabic", "multilingual"
       ]
+    },
+
+    "psychology": {
+      "enabled": false,
+      "openalex_filter": "type:article,has_abstract:true,language:en,is_paratext:false,primary_location.source.type:journal,concepts.id:C15744967",
+      "keywords": ["memory", "attention", "motivation", "wellbeing", "adolescent", "social media"]
     }
   },
 

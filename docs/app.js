@@ -19,6 +19,16 @@ const S = {
 const N_STEPS = [0, 50, 100, 500, 1000, 10000, 100000];
 const N_LABELS = ['any', '50+', '100+', '500+', '1k+', '10k+', '100k+'];
 
+const SOURCE_LABELS = {
+  europepmc: 'Europe PMC',
+  openalex: 'OpenAlex',
+  crossref: 'Crossref',
+  semanticscholar: 'Semantic Scholar',
+  arxiv: 'arXiv',
+  medrxiv: 'medRxiv',
+  biorxiv: 'bioRxiv',
+};
+
 const CHECKS = [
   'I opened the actual paper, not just this abstract',
   'I know what the control group received',
@@ -156,7 +166,18 @@ async function loadRun(date) {
   S.papers = data.shortlist || [];
   const st = data.stats || {};
   $('#runStats').textContent =
-    `${st.total ?? '?'} scanned → ${S.papers.length} shortlisted`;
+    `${st.total ?? '?'} scanned → ${S.papers.length} shortlisted` +
+    (st.passes ? ` · ${st.passes} searches` : '');
+
+  // Which indexes appear depends on the run, so build the filter from the data
+  // rather than hardcoding a list that goes stale when a source is added.
+  const names = [...new Set(S.papers.flatMap(p => p.found_by || [p.source]))].sort();
+  const sel = $('#fSource');
+  const keep = sel.value;
+  sel.innerHTML = '<option value="">All sources</option>' +
+    names.map(n => `<option value="${esc(n)}">${esc(SOURCE_LABELS[n] || n)}</option>`).join('');
+  sel.value = names.includes(keep) ? keep : '';
+
   applyFilters();
   if (S.filtered.length) select(S.filtered[0]);
 }
@@ -206,7 +227,7 @@ function applyFilters() {
     }
     if (verdict === 'unset' && p.verdict) return false;
     if (verdict && verdict !== 'unset' && p.verdict !== verdict) return false;
-    if (source && p.source !== source) return false;
+    if (source && !(p.found_by || [p.source]).includes(source)) return false;
     if (design && !`${p.title} ${p.abstract}`.toLowerCase().includes(design)) return false;
     if (noPre && p.is_preprint) return false;
     if (tierOnly && tierOf(p) < 4) return false;
@@ -237,10 +258,14 @@ function renderList() {
 
   list.innerHTML = S.filtered.map(p => {
     const tier = tierOf(p);
+    const found = p.found_by || [p.source];
     const pills = [
       p.is_preprint ? `<span class="pill warn">preprint</span>` : '',
       tier >= 4 ? `<span class="pill tier">tier ${tier}</span>` : '',
       p.sample_size ? `<span class="pill">n≈${p.sample_size.toLocaleString()}</span>` : '',
+      found.length > 1
+        ? `<span class="pill tier" title="${esc(found.join(', '))}">${found.length}× sources</span>` : '',
+      p.has_correction ? `<span class="pill warn">correction</span>` : '',
       p.verdict ? `<span class="pill ${p.verdict}">${p.verdict}</span>` : '',
       p.has_notes ? `<span class="pill">notes</span>` : '',
     ].join('');
@@ -590,10 +615,31 @@ function renderSources(view, p) {
         <dt>Published</dt><dd>${esc(p.date)}</dd>
         <dt>Authors</dt><dd>${esc(p.authors || '—')}</dd>
         <dt>Sample</dt><dd>${p.sample_size ? 'n≈' + p.sample_size.toLocaleString() : '—'}</dd>
-        <dt>Citations</dt><dd>${p.citations ?? 0}</dd>
+        <dt>Citations</dt><dd>${p.citations ?? 0}${
+          p.influential ? ` (${p.influential} influential)` : ''}</dd>
         <dt>Access</dt><dd>${p.open_access ? 'open access' : 'paywalled / unknown'}</dd>
       </dl>
     </div>
+
+    <div class="srcblock">
+      <h5>How it was found</h5>
+      <div class="linklist">
+        ${(p.found_by || [p.source]).map(s =>
+          `<a>${esc(SOURCE_LABELS[s] || s)}<span>index</span></a>`).join('')}
+      </div>
+      ${(p.strategies || []).length
+        ? `<p class="muted small" style="margin:8px 0 0">
+             Search: ${esc(p.strategies.join(' · '))}</p>` : ''}
+      ${(p.found_by || []).length > 1
+        ? `<p class="muted small" style="margin:6px 0 0">
+             Independently indexed ${p.found_by.length} times — the record is
+             sound. It says nothing about whether the finding is.</p>` : ''}
+    </div>
+
+    ${p.tldr ? `<div class="srcblock">
+      <h5>Machine summary</h5>
+      <p class="muted small">${esc(p.tldr)}</p>
+    </div>` : ''}
 
     <div class="srcblock">
       <h5>Go to source</h5>

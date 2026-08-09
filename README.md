@@ -94,35 +94,79 @@ Everything autosaves to `data/state.json` and survives restarts and re-fetches
 The fetcher runs standalone too, if you'd rather cron it:
 
 ```
-python fetch.py                 # last 3 days (config default)
-python fetch.py --days 7        # wider net, e.g. after a weekend
+python fetch.py                        # last 3 days, every enabled source
+python fetch.py --days 7               # wider net, e.g. after a weekend
+python fetch.py --quick                # skip the slow per-keyword passes
 python fetch.py --topic medicine
+python fetch.py --sources openalex,europepmc
 python fetch.py --top 15
 ```
+
+A full run makes ~37 requests across six APIs and takes a few minutes;
+`--quick` cuts it to about one. Every source is throttled to its published
+rate limit, so it's a well-behaved client, not a scraper.
 
 Outputs `out/YYYY-MM-DD.md` (readable shortlist) and `out/YYYY-MM-DD.json`
 (what the workspace loads).
 
 ## What it does
 
+It works the way a person would with unlimited patience: ask every index that
+will answer, ask each one several *different* questions, follow citation
+threads forward, then cross-check before ranking.
+
 ```
-Europe PMC  (MEDLINE + PMC + preprints)     arXiv (cs.AI/CL/LG/CY)
-        │  two sweeps:                              │  newest-first paging
-        │  · topic keywords in title/abstract       │  until past the window
-        │  · anything in a tier-4/5 journal         │
-        └──────────────────┬────────────────────────┘
-                     dedupe by DOI/title
-                           │
-                    hard excludes  (protocols, errata, editorials, retractions)
-                           │
-                    heuristic score
-                           │
-                     top N → shortlist.md
-                           │
-                    ☐ shoot  ☐ hold  ☐ kill     ← you, every morning
+   Europe PMC        OpenAlex         Crossref      arXiv   medRxiv   S2
+  ┌───────────┐   ┌────────────┐   ┌───────────┐     │        │       │
+  │ keywords  │   │ newest     │   │ per-topic │     │ cats   │ new   │ relevance
+  │ tier 4/5  │   │ most-cited │   │ queries   │     │        │       │ ranking
+  │ RCT/meta  │   │ per-keyword│   │           │     │        │       │
+  └─────┬─────┘   └──────┬─────┘   └─────┬─────┘     │        │       │
+        │                │               │           │        │       │
+        │      citation-chase: what already cites the biggest hit?     │
+        └────────────────┴───────────────┴───────────┴────────┴───────┘
+                                  │
+                    merge on DOI — a paper found by 3 indexes
+                    keeps the richest field from each
+                                  │
+                    score  →  verify the top 30:
+                              · retraction check (OpenAlex + Crossref)
+                              · citation + influence (Semantic Scholar)
+                              · free full text (Unpaywall)
+                                  │
+                    drop anything retracted, backfill, re-rank
+                                  │
+                       ☐ shoot  ☐ hold  ☐ kill   ← you, every morning
 ```
 
-Last run: 2,381 unique papers → 10 shortlisted.
+Last run: **37 searches → 8,357 records → 6,331 unique papers → 10 shortlisted.**
+
+## Sources
+
+| Source | Covers | How it's queried |
+|---|---|---|
+| **Europe PMC** | MEDLINE, PMC, preprints | keyword sweep · tier-4/5 journal sweep · strong-design sweep (RCT / meta-analysis / systematic review) |
+| **OpenAlex** | 250M+ works, every discipline | newest · most-cited-in-window · one search per topic keyword · citation chasing |
+| **Crossref** | every registered DOI | per-keyword bibliographic queries; catches papers subject indexes haven't picked up yet |
+| **arXiv** | cs.AI / CL / LG / CY | newest-first paging until past the window |
+| **medRxiv / bioRxiv** | preprints | full window, and flags any that a journal has since published |
+| **Semantic Scholar** | 200M+ papers | its own relevance ranking, plus batch citation/influence lookup |
+| **Unpaywall** | OA locations | where a legal free full text lives |
+
+**Why not Google Scholar.** It has no API, its terms forbid automated access,
+and it enforces that with CAPTCHAs and IP bans — anything built on it breaks
+within days. Scholar is mostly an *index of* sources that do have proper APIs;
+OpenAlex is the open successor to Microsoft Academic and covers the same ground,
+queryable in ways Scholar never allowed. Together with Crossref and Semantic
+Scholar the coverage is comparable and the tool doesn't break.
+
+Set `contact_email` in `config.json` to enter the polite pools at OpenAlex,
+Crossref and Unpaywall — identified callers get higher rate limits, and
+Unpaywall requires it. Semantic Scholar's anonymous pool rate-limits hard;
+when a pass is throttled the run says so and carries on.
+
+Add a discipline by adding a topic to `config.json` with an OpenAlex concept
+id — `psychology` and `biology` are already there, switched off.
 
 ## How scoring works
 
@@ -135,8 +179,11 @@ reasons it ranked where it did, so you can argue with it and tune `config.json`.
 | Study design | meta-analysis / RCT +6, cohort +3, case report −3, mouse study −5 |
 | Sample size | `log10(n)`, capped at +5 |
 | Topic keyword hits | up to +3; −1 if none |
-| Preprint | −2 and a loud ⚠️ in the output |
-| Citations | up to +2 |
+| **Found by N indexes** | **up to +3 — independent corroboration that the record is sound** |
+| Preprint | −2 and a loud ⚠️; waived if a journal has since published it |
+| Citations / influential citations | up to +2 each |
+| Correction issued | −1.5 and a flag |
+| Retracted | **excluded outright** |
 | Title hooks | "largest", "no benefit", "reversed" etc. +1 to +1.5 |
 
 Tune everything in `config.json` — journal tiers, design weights, keywords,
@@ -175,10 +222,11 @@ A ⚠️ PREPRINT flag means not peer reviewed. If you shoot it, say so on camer
 ## Files
 
 ```
-fetch.py        discovery + scoring          config.json   all tuning knobs
-server.py       local API + static server    out/          shortlists per day
-web/index.html  home screen                  data/         your saved work
-web/workspace.html  reader + script editor   docs/         the public demo
+sources.py      one adapter per index        config.json   all tuning knobs
+fetch.py        harvest + merge + score      out/          shortlists per day
+server.py       local API + static server    data/         your saved work
+web/index.html  home screen                  docs/         the public demo
+web/workspace.html  reader + script editor
 build_demo.py   generates docs/
 ```
 
