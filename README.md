@@ -1,5 +1,8 @@
 # Arabic Research Daily
 
+**Live demo → https://mawccu.github.io/arabic-research-daily/**
+(real papers, real scoring; fetching and full text need the local app)
+
 The part of the pipeline that decides whether the whole thing is 8/10 or 5/10:
 finding the one paper per day that's actually worth an episode, without you
 reading 2,000 abstracts — then reading, annotating and scripting it in one place.
@@ -136,10 +139,26 @@ A ⚠️ PREPRINT flag means not peer reviewed. If you shoot it, say so on camer
 ## Files
 
 ```
-fetch.py      discovery + scoring          config.json   all tuning knobs
-server.py     local API + static server    out/          shortlists per day
-web/          the workspace UI             data/         your saved work
+fetch.py        discovery + scoring          config.json   all tuning knobs
+server.py       local API + static server    out/          shortlists per day
+web/            the workspace UI             data/         your saved work
+build_demo.py   generates docs/              docs/         the public demo
 ```
+
+## Updating the public demo
+
+`docs/` is a static build of `web/` with the latest shortlist baked in. When
+there's no Python backend, `app.js` answers its own API calls from that data and
+saves to `localStorage`, so the interface is fully usable — it just can't fetch,
+load full text, or share state between machines. The page says so at the top.
+
+```
+python fetch.py            # get a fresh shortlist
+python build_demo.py       # regenerate docs/
+git add -A && git commit -m "rebuild demo" && git push
+```
+
+`web/` stays the single source of truth; never edit `docs/` by hand.
 
 ## Next stages (not built yet)
 
