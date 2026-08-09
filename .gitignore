@@ -1,0 +1,15 @@
+# Your editorial work — highlights, scripts, verdicts. Local only.
+data/
+
+# Generated shortlists, one per run. Regenerate with: python fetch.py
+out/
+
+# Never commit credentials
+.env
+*.token
+secrets.json
+
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db

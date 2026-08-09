@@ -1,0 +1,70 @@
+{
+  "lookback_days": 3,
+  "shortlist_size": 10,
+  "max_per_source": 120,
+  "max_pages": 10,
+
+  "topics": {
+    "medicine": {
+      "enabled": true,
+      "europepmc_query": "(SRC:MED OR SRC:PPR) AND (HAS_ABSTRACT:y) AND (LANG:eng)",
+      "keywords": [
+        "obesity", "diabetes", "cardiovascular", "cancer", "vitamin",
+        "sleep", "exercise", "diet", "depression", "anxiety", "dementia",
+        "antibiotic", "vaccine", "microbiome", "smoking", "vaping",
+        "blood pressure", "cholesterol", "fertility", "pregnancy", "longevity"
+      ]
+    },
+    "ai_cs": {
+      "enabled": true,
+      "arxiv_categories": ["cs.AI", "cs.CL", "cs.LG", "cs.CY"],
+      "keywords": [
+        "large language model", "reasoning", "agent", "benchmark",
+        "safety", "alignment", "education", "medical", "arabic", "multilingual"
+      ]
+    }
+  },
+
+  "journal_tiers": {
+    "5": ["new england journal of medicine", "lancet", "jama", "nature", "science", "cell", "bmj"],
+    "4": ["nature medicine", "nature human behaviour", "lancet oncology", "lancet neurology",
+          "jama internal medicine", "jama psychiatry", "jama pediatrics", "annals of internal medicine",
+          "circulation", "european heart journal", "gut", "diabetes care", "nature communications"],
+    "3": ["plos medicine", "bmj open", "jama network open", "eclinicalmedicine", "lancet public health",
+          "american journal of clinical nutrition", "sleep", "brain", "thorax", "hypertension"]
+  },
+
+  "design_scores": {
+    "meta-analysis": 6,
+    "systematic review": 5,
+    "randomized controlled trial": 6,
+    "randomised controlled trial": 6,
+    "randomized clinical trial": 6,
+    "double-blind": 2,
+    "placebo-controlled": 2,
+    "cohort study": 3,
+    "prospective cohort": 4,
+    "longitudinal": 2,
+    "case-control": 2,
+    "cross-sectional": 1,
+    "mendelian randomization": 4,
+    "case report": -3,
+    "narrative review": -2,
+    "protocol": -6,
+    "in vitro": -4,
+    "in mice": -5,
+    "mouse model": -5,
+    "rats": -4,
+    "zebrafish": -5
+  },
+
+  "hard_excludes": [
+    "study protocol",
+    "retracted",
+    "correction to",
+    "erratum",
+    "author correction",
+    "editorial",
+    "letter to the editor"
+  ]
+}
