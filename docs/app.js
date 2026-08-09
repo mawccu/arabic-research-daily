@@ -1041,8 +1041,9 @@ function setPlaying(on) {
   if (!on) return;
 
   const scroll = $('#ppScroll');
-  // Track position as a float: a per-frame `scrollTop += 0.8` is truncated on
-  // read-back, so the position never accumulates and nothing moves.
+  // Track position as a float. Assigning `scrollTop += 0.8` each frame rounds
+  // to a whole pixel on read-back, so the actual speed drifts above the
+  // setting; accumulating separately keeps px/second honest.
   let pos = scroll.scrollTop;
   let last = null;
 

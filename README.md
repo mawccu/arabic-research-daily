@@ -19,6 +19,42 @@ reading, highlighting, scripting, verdicts.
 No API keys, no `pip install`, no build step. Stdlib + vanilla JS.
 Binds to localhost only; nothing leaves your machine except the paper lookups.
 
+## The home screen
+
+The entry point at `/` is a hero page with one button — **Generate a research** —
+which runs the pipeline with the log streaming underneath, plus days-back,
+shortlist-size and topic controls. Finished runs appear below as cards showing
+what was scanned, the top-ranked paper, and how many you've decided on. Click a
+card to open it; the `⋯` menu gives you open, retitle, export JSON, open the
+Markdown, or delete the run (deleting removes the shortlist files only — your
+highlights, scripts and verdicts in `data/` are kept).
+
+## The workspace
+
+Cards open `/workspace?date=YYYY-MM-DD`. Above the panes is an action bar:
+
+| Button | What it does |
+|---|---|
+| **Translate to Arabic** | Sends your highlights — or the whole abstract if you haven't highlighted anything — to Claude and appends the Arabic to the Script tab |
+| **Arabic outline** | Same, but returns the four-section episode skeleton (الفكرة الأساسية / ماذا وجدت الدراسة / كيف اختبروها / ما الذي لا تعنيه هذه النتيجة) |
+| **Copy citation** | Authors, year, title, journal, DOI — to the clipboard |
+| **Export script** | Downloads the script as Markdown with the source and preprint warning attached |
+| **Teleprompter** | Full-screen scrolling view of the script for recording — space to play/pause, adjustable speed and type size, Esc to exit |
+| **Print** | Prints just the document pane |
+
+**Translation is the one feature that needs an outside service.** It calls the
+Claude API from your local server:
+
+```
+pip install anthropic
+setx ANTHROPIC_API_KEY "sk-ant-..."     # then restart the server
+```
+
+Without the package or the key, the button says exactly what's missing instead
+of failing quietly. It's told to keep every number, sample size and effect size
+exactly as given and never to strengthen a claim — but it is a machine
+translation of a paper you are responsible for. Read it before you record.
+
 ## The three panes
 
 **Left — the shortlist.** Search, and filter by verdict, source, study design,
@@ -141,8 +177,9 @@ A ⚠️ PREPRINT flag means not peer reviewed. If you shoot it, say so on camer
 ```
 fetch.py        discovery + scoring          config.json   all tuning knobs
 server.py       local API + static server    out/          shortlists per day
-web/            the workspace UI             data/         your saved work
-build_demo.py   generates docs/              docs/         the public demo
+web/index.html  home screen                  data/         your saved work
+web/workspace.html  reader + script editor   docs/         the public demo
+build_demo.py   generates docs/
 ```
 
 ## Updating the public demo
