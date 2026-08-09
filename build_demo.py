@@ -99,21 +99,23 @@ def main():
         json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
         f.write(";\n")
 
-    index_path = os.path.join(DOCS, "index.html")
-    with open(index_path, encoding="utf-8") as f:
-        html = f.read()
+    # Pages serves from a subpath, so absolute asset URLs would 404, and each
+    # page needs demo-data.js loaded before its own script.
+    for name, script in (("index.html", "home.js"), ("workspace.html", "app.js")):
+        page = os.path.join(DOCS, name)
+        with open(page, encoding="utf-8") as f:
+            html = f.read()
 
-    if "demo-data.js" not in html:
-        html = html.replace('<script src="/app.js"></script>',
+        html = html.replace(f'<script src="/{script}"></script>',
                             '<script src="demo-data.js"></script>\n'
-                            '<script src="app.js"></script>')
-    # Pages serves from a subpath, so absolute asset URLs would 404.
-    html = html.replace('href="/style.css"', 'href="style.css"')
-    html = re.sub(r'<title>.*?</title>',
-                  '<title>Research Daily — demo</title>', html, flags=re.S)
+                            f'<script src="{script}"></script>')
+        html = html.replace('href="/style.css"', 'href="style.css"')
+        html = html.replace('href="/"', 'href="index.html"')
+        html = re.sub(r"<title>.*?</title>",
+                      "<title>Research Daily — demo</title>", html, flags=re.S)
 
-    with open(index_path, "w", encoding="utf-8") as f:
-        f.write(html)
+        with open(page, "w", encoding="utf-8") as f:
+            f.write(html)
 
     # Pages runs Jekyll by default, which ignores files it doesn't understand.
     open(os.path.join(DOCS, ".nojekyll"), "w").close()

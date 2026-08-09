@@ -52,9 +52,12 @@ async function init() {
   wireModals();
   wireResize();
   wireKeys();
+  wireActions();
   if (DEMO) enterDemoMode();
 
-  await loadRuns();
+  // Home screen links through as ?date=YYYY-MM-DD
+  const wanted = new URLSearchParams(location.search).get('date');
+  await loadRuns(wanted);
 }
 
 /* ── data ─────────────────────────────────────────────── */
@@ -109,6 +112,9 @@ function demoApi(path, opts) {
 
   if (path.startsWith('/api/fetch'))
     return { started: false, active: false, log: ['__done__ demo page — run locally to fetch'] };
+
+  if (path.startsWith('/api/translate'))
+    return { error: 'Translation runs through the local app, which calls the Claude API with your own key.' };
 
   return {};
 }
@@ -886,6 +892,173 @@ function wireKeys() {
       $(`.btn.verdict[data-verdict="${{ 1: 'shoot', 2: 'hold', 3: 'kill' }[e.key]}"]`).click();
     }
   });
+}
+
+/* ── action bar ───────────────────────────────────────── */
+
+function status(msg, ms = 3000) {
+  const el = $('#actStatus');
+  el.textContent = msg;
+  clearTimeout(status._t);
+  if (ms) status._t = setTimeout(() => (el.textContent = ''), ms);
+}
+
+function wireActions() {
+  $('#actTranslate').addEventListener('click', () => translate('brief'));
+  $('#actOutline').addEventListener('click', () => translate('outline'));
+  $('#actCite').addEventListener('click', copyCitation);
+  $('#actExport').addEventListener('click', exportScript);
+  $('#actPrint').addEventListener('click', () => window.print());
+  $('#actPrompter').addEventListener('click', openPrompter);
+  wirePrompter();
+}
+
+/* Translate: prefers your highlights, falls back to the whole abstract. */
+async function translate(mode) {
+  const p = S.current;
+  if (!p) return;
+
+  const hls = collectHighlights();
+  const source = hls.length
+    ? hls.map(h => h.text).join('\n\n')
+    : `${p.title}\n\n${p.abstract}`;
+
+  const btn = mode === 'outline' ? $('#actOutline') : $('#actTranslate');
+  btn.disabled = true;
+  status(hls.length
+    ? `Translating ${hls.length} highlight${hls.length === 1 ? '' : 's'}…`
+    : 'Translating the abstract…', 0);
+
+  const r = await api('/api/translate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: source, mode }),
+  });
+
+  btn.disabled = false;
+
+  if (r.error) {
+    status('');
+    alert(`Translation unavailable.\n\n${r.error}\n\n` +
+      `This is the one feature that needs an outside service — everything else ` +
+      `in the app runs offline.`);
+    return;
+  }
+
+  if (S.docMode !== 'script') $('.tab[data-doc="script"]').click();
+  const doc = $('#scriptDoc');
+  doc.dir = 'rtl';
+  const html = r.arabic.split(/\n{2,}/).map(para => {
+    const line = para.trim();
+    if (!line) return '';
+    // Model returns the four section headings as bare lines.
+    return line.length < 60 && !/[.،؛]$/.test(line)
+      ? `<h2>${esc(line)}</h2>`
+      : `<p>${esc(line).replace(/\n/g, '<br>')}</p>`;
+  }).join('');
+
+  doc.insertAdjacentHTML('beforeend', html);
+  updateWordCount();
+  saveSoon(true);
+  status('Translated — check every number against the paper.', 6000);
+}
+
+function copyCitation() {
+  const p = S.current;
+  if (!p) return;
+  const bits = [
+    p.authors || 'Unknown authors',
+    `(${(p.date || '').slice(0, 4)})`,
+    `${p.title}.`,
+    p.journal ? `${p.journal}.` : '',
+    p.doi ? `https://doi.org/${p.doi}` : p.url,
+  ].filter(Boolean);
+  navigator.clipboard.writeText(bits.join(' '))
+    .then(() => status('Citation copied'))
+    .catch(() => status('Copy failed'));
+}
+
+function exportScript() {
+  const p = S.current;
+  if (!p) return;
+  const doc = $('#scriptDoc');
+
+  // innerText keeps the visual line breaks the editor shows.
+  const body = doc.innerText.trim();
+  const src = p.doi ? `https://doi.org/${p.doi}` : p.url;
+  const md = [
+    `# ${p.title}`, '',
+    `${p.journal || p.source} · ${p.date}`,
+    `Source: ${src}`,
+    ...(p.is_preprint ? ['', '> PREPRINT — not peer reviewed.'] : []),
+    '', '---', '', body, '',
+  ].join('\n');
+
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${(p.date || 'script')}-script.md`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  status('Script exported');
+}
+
+/* ── teleprompter ─────────────────────────────────────── */
+
+const PP = { raf: null, playing: false };
+
+function openPrompter() {
+  const text = $('#scriptDoc').innerText.trim();
+  if (!text) return status('Write the script first');
+
+  const el = $('#ppText');
+  el.textContent = text;
+  el.dir = $('#scriptDoc').dir === 'ltr' ? 'ltr' : 'rtl';
+  el.style.fontSize = `${$('#ppSize').value}px`;
+  $('#ppScroll').scrollTop = 0;
+  $('#prompter').classList.remove('hidden');
+  setPlaying(false);
+}
+
+function wirePrompter() {
+  $('#ppClose').addEventListener('click', closePrompter);
+  $('#ppPlay').addEventListener('click', () => setPlaying(!PP.playing));
+  $('#ppSize').addEventListener('input', e => {
+    $('#ppText').style.fontSize = `${e.target.value}px`;
+  });
+
+  document.addEventListener('keydown', e => {
+    if ($('#prompter').classList.contains('hidden')) return;
+    if (e.key === 'Escape') closePrompter();
+    if (e.code === 'Space') { e.preventDefault(); setPlaying(!PP.playing); }
+  });
+}
+
+function setPlaying(on) {
+  PP.playing = on;
+  $('#ppPlay').textContent = on ? '❚❚ Pause' : '▶ Play';
+  cancelAnimationFrame(PP.raf);
+  if (!on) return;
+
+  const scroll = $('#ppScroll');
+  let last = null;
+  const step = now => {
+    if (last !== null) {
+      // speed 1–12 maps to roughly 12–150 px/second
+      const px = (+$('#ppSpeed').value * 12) * ((now - last) / 1000);
+      scroll.scrollTop += px;
+      if (scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 2)
+        return setPlaying(false);
+    }
+    last = now;
+    PP.raf = requestAnimationFrame(step);
+  };
+  PP.raf = requestAnimationFrame(step);
+}
+
+function closePrompter() {
+  setPlaying(false);
+  $('#prompter').classList.add('hidden');
 }
 
 window.addEventListener('beforeunload', flushSave);

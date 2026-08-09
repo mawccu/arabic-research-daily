@@ -3,197 +3,94 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Research Daily — workspace</title>
+<title>Research Daily</title>
 <link rel="stylesheet" href="/style.css">
 </head>
-<body>
+<body class="home">
 
 <header class="topbar">
   <div class="brand">
     <span class="dot"></span>
     <strong>Research Daily</strong>
-    <select id="runSelect" class="ghost-select" title="Shortlist run"></select>
   </div>
-
   <div class="topbar-actions">
-    <span id="runStats" class="muted small"></span>
-    <button id="btnFetch" class="btn">Fetch new</button>
-    <button id="btnConfig" class="btn ghost" title="Edit scoring config">Config</button>
+    <button id="btnConfig" class="btn ghost">Config</button>
     <button id="btnTheme" class="btn ghost icon" title="Toggle theme">◐</button>
   </div>
 </header>
 
-<main class="layout" id="layout">
+<main class="homewrap">
 
-  <!-- ── LEFT: shortlist ─────────────────────────────────── -->
-  <aside class="pane pane-list" id="paneList">
-    <div class="filters">
-      <input id="search" class="input" type="search" placeholder="Search title, journal, abstract…">
+  <!-- ── hero ────────────────────────────────────────────── -->
+  <section class="hero">
+    <p class="eyebrow">بحث يومي · daily research</p>
+    <h1>Find the one paper<br>worth an episode.</h1>
+    <p class="lede">
+      Every run scans a few thousand new papers, scores them on study design,
+      journal tier and sample size, and hands you a shortlist of ten.
+      You pick one, read it, and write the Arabic script beside it.
+    </p>
 
-      <div class="filter-row">
-        <select id="fVerdict" class="input small">
-          <option value="">All verdicts</option>
-          <option value="unset">Undecided</option>
-          <option value="shoot">Shoot</option>
-          <option value="hold">Hold</option>
-          <option value="kill">Kill</option>
-        </select>
-        <select id="fSort" class="input small">
-          <option value="score">Sort: score</option>
-          <option value="date">Sort: newest</option>
-          <option value="n">Sort: sample size</option>
-          <option value="cites">Sort: citations</option>
-          <option value="title">Sort: title</option>
-        </select>
-      </div>
-
-      <div class="filter-row">
-        <select id="fSource" class="input small">
-          <option value="">All sources</option>
-          <option value="europepmc">Europe PMC</option>
-          <option value="arxiv">arXiv</option>
-        </select>
-        <select id="fDesign" class="input small">
-          <option value="">Any design</option>
-          <option value="meta-analysis">Meta-analysis</option>
-          <option value="systematic review">Systematic review</option>
-          <option value="randomi">Randomised trial</option>
-          <option value="cohort">Cohort</option>
-          <option value="case-control">Case-control</option>
-        </select>
-      </div>
-
-      <div class="filter-row toggles">
-        <label class="chk"><input type="checkbox" id="fNoPreprint"> Peer-reviewed only</label>
-        <label class="chk"><input type="checkbox" id="fTier"> Tier 4–5 journals</label>
-      </div>
-
-      <div class="filter-row toggles">
-        <label class="rangelbl">min n
-          <input type="range" id="fMinN" min="0" max="6" step="1" value="0">
-          <span id="fMinNVal" class="muted small">any</span>
-        </label>
-      </div>
-
-      <div class="listmeta">
-        <span id="listCount" class="muted small"></span>
-        <button id="btnReset" class="linkbtn">reset</button>
-      </div>
+    <div class="herocta">
+      <button class="bigbtn" id="btnGenerate">
+        <span class="bigbtn-ico">✦</span>
+        <span>
+          <strong>Generate a research</strong>
+          <em id="genHint">scan the last 3 days</em>
+        </span>
+      </button>
+      <button class="bigbtn ghost" id="btnLatest">
+        <span class="bigbtn-ico">→</span>
+        <span><strong>Open latest</strong><em id="latestHint">—</em></span>
+      </button>
     </div>
 
-    <div id="list" class="list"></div>
-  </aside>
-
-  <div class="gutter" data-resize="list"></div>
-
-  <!-- ── CENTER: document ────────────────────────────────── -->
-  <section class="pane pane-doc">
-    <div class="doctabs">
-      <button class="tab active" data-doc="paper">Paper</button>
-      <button class="tab" data-doc="script">Script</button>
-      <div class="spacer"></div>
-      <div class="docmeta" id="docMeta"></div>
-    </div>
-
-    <!-- paper toolbar -->
-    <div class="toolbar" id="paperTools">
-      <div class="hlcolors">
-        <button class="swatch" data-hl="y" style="--c:var(--hl-y)" title="Highlight — key finding"></button>
-        <button class="swatch" data-hl="g" style="--c:var(--hl-g)" title="Highlight — method"></button>
-        <button class="swatch" data-hl="p" style="--c:var(--hl-p)" title="Highlight — limitation"></button>
-        <button class="swatch" data-hl="r" style="--c:var(--hl-r)" title="Highlight — caution / red flag"></button>
-        <button class="swatch clear" data-hl="none" title="Remove highlight">⌫</button>
-      </div>
-      <div class="sep"></div>
-      <button class="btn ghost small" id="btnFulltext">Load full text</button>
-      <div class="sep"></div>
-      <label class="chk small"><input type="checkbox" id="fontBig"> Large type</label>
-      <div class="spacer"></div>
-      <span id="hlHint" class="muted small">select text, then pick a colour</span>
-    </div>
-
-    <!-- script toolbar -->
-    <div class="toolbar hidden" id="scriptTools">
-      <button class="btn ghost small" data-cmd="bold"><b>B</b></button>
-      <button class="btn ghost small" data-cmd="italic"><i>I</i></button>
-      <button class="btn ghost small" data-cmd="underline"><u>U</u></button>
-      <div class="sep"></div>
-      <button class="btn ghost small" data-block="h2">H2</button>
-      <button class="btn ghost small" data-block="h3">H3</button>
-      <button class="btn ghost small" data-block="p">¶</button>
-      <div class="sep"></div>
-      <button class="btn ghost small" data-cmd="insertUnorderedList">• list</button>
-      <button class="btn ghost small" data-block="blockquote">❝</button>
-      <div class="sep"></div>
-      <button class="btn ghost small" id="btnRtl" title="Arabic / right-to-left">عربي ⇄</button>
-      <button class="btn ghost small" id="btnPullQuotes" title="Insert highlighted lines as quotes">↧ highlights</button>
-      <div class="spacer"></div>
-      <span id="wordCount" class="muted small"></span>
-    </div>
-
-    <div class="docscroll">
-      <article id="paperDoc" class="page"></article>
-      <article id="scriptDoc" class="page hidden" contenteditable="true" spellcheck="false"></article>
-    </div>
-  </section>
-
-  <div class="gutter" data-resize="side"></div>
-
-  <!-- ── RIGHT: sources / highlights ─────────────────────── -->
-  <aside class="pane pane-side" id="paneSide">
-    <div class="sidetabs">
-      <button class="tab active" data-side="sources">Sources</button>
-      <button class="tab" data-side="highlights">Highlights <span id="hlCount" class="badge"></span></button>
-      <button class="tab" data-side="scoring">Scoring</button>
-      <button class="tab" data-side="checks">Checks</button>
-    </div>
-    <div class="sidebody">
-      <div class="sideview" data-view="sources"></div>
-      <div class="sideview hidden" data-view="highlights"></div>
-      <div class="sideview hidden" data-view="scoring"></div>
-      <div class="sideview hidden" data-view="checks"></div>
-    </div>
-  </aside>
-</main>
-
-<!-- ── verdict bar ───────────────────────────────────────── -->
-<footer class="verdictbar" id="verdictBar">
-  <span class="muted small" id="saveState">saved</span>
-  <div class="spacer"></div>
-  <button class="btn verdict" data-verdict="shoot">☐ Shoot</button>
-  <button class="btn verdict" data-verdict="hold">☐ Hold</button>
-  <button class="btn verdict" data-verdict="kill">☐ Kill</button>
-</footer>
-
-<!-- ── modals ────────────────────────────────────────────── -->
-<div class="modal hidden" id="fetchModal">
-  <div class="modalbox">
-    <h3>Fetch new papers</h3>
-    <div class="formrow">
-      <label>Lookback days <input id="mDays" class="input small" type="number" value="3" min="1" max="60"></label>
-      <label>Shortlist size <input id="mTop" class="input small" type="number" value="10" min="3" max="60"></label>
-    </div>
-    <div class="formrow">
+    <div class="genopts" id="genOpts">
+      <label>Days back
+        <input id="gDays" class="input small" type="number" value="3" min="1" max="60">
+      </label>
+      <label>Shortlist size
+        <input id="gTop" class="input small" type="number" value="10" min="3" max="60">
+      </label>
       <label>Topic
-        <select id="mTopic" class="input small">
-          <option value="">All enabled topics</option>
-          <option value="medicine">medicine</option>
-          <option value="ai_cs">ai_cs</option>
+        <select id="gTopic" class="input small">
+          <option value="">All topics</option>
+          <option value="medicine">Medicine</option>
+          <option value="ai_cs">AI / CS</option>
         </select>
       </label>
     </div>
-    <pre id="fetchLog" class="log"></pre>
-    <div class="modalactions">
-      <button class="btn ghost" data-close>Close</button>
-      <button class="btn primary" id="btnRunFetch">Run</button>
+
+    <pre id="genLog" class="log hidden"></pre>
+  </section>
+
+  <!-- ── runs ────────────────────────────────────────────── -->
+  <section class="runs">
+    <div class="runs-head">
+      <h2>Your runs</h2>
+      <span id="runsCount" class="muted small"></span>
     </div>
-  </div>
+    <div id="runGrid" class="rungrid"></div>
+  </section>
+
+  <footer class="homefoot">
+    <span class="muted small">Runs locally · nothing leaves your machine except the paper lookups</span>
+  </footer>
+</main>
+
+<!-- ── card menu ─────────────────────────────────────────── -->
+<div class="menu hidden" id="cardMenu">
+  <button data-act="open">Open in workspace</button>
+  <button data-act="rename">Edit title…</button>
+  <button data-act="export">Export JSON</button>
+  <button data-act="markdown">Open Markdown</button>
+  <button class="danger" data-act="delete">Delete run</button>
 </div>
 
 <div class="modal hidden" id="configModal">
   <div class="modalbox wide">
     <h3>Scoring config</h3>
-    <p class="muted small">Edit and save. Takes effect on the next fetch.</p>
+    <p class="muted small">Journal tiers, study-design weights, keywords, exclusions. Applies to the next run.</p>
     <textarea id="configText" class="code" spellcheck="false"></textarea>
     <div class="modalactions">
       <span id="configMsg" class="muted small"></span>
@@ -204,6 +101,6 @@
   </div>
 </div>
 
-<script src="/app.js"></script>
+<script src="/home.js"></script>
 </body>
 </html>

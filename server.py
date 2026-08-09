@@ -72,21 +72,34 @@ def patch_paper(uid, patch):
 def list_runs():
     if not os.path.isdir(OUT):
         return []
+
+    state = load_state()
+    labels = state.get("run_labels", {})
+    saved = state.get("papers", {})
+
     runs = []
     for name in sorted(os.listdir(OUT), reverse=True):
         if not name.endswith(".json"):
             continue
-        path = os.path.join(OUT, name)
         try:
-            with open(path, encoding="utf-8") as f:
+            with open(os.path.join(OUT, name), encoding="utf-8") as f:
                 data = json.load(f)
-            runs.append({
-                "date": data.get("date", name[:-5]),
-                "count": len(data.get("shortlist", [])),
-                "stats": data.get("stats", {}),
-            })
         except (json.JSONDecodeError, OSError):
             continue
+
+        shortlist = data.get("shortlist", [])
+        date = data.get("date", name[:-5])
+        decided = sum(1 for p in shortlist
+                      if saved.get(p.get("uid", ""), {}).get("verdict"))
+
+        runs.append({
+            "date": date,
+            "label": labels.get(date, ""),
+            "count": len(shortlist),
+            "stats": data.get("stats", {}),
+            "top": shortlist[0]["title"] if shortlist else "",
+            "decided": decided,
+        })
     return runs
 
 
@@ -196,6 +209,69 @@ def epmc_fulltext(pmcid):
             sections = [{"heading": "", "paragraphs": paras}]
 
     return sections or None
+
+
+def translate_to_arabic(text, mode="brief"):
+    """Translate / adapt English paper text into Arabic via the Claude API.
+
+    Optional: needs `pip install anthropic` and ANTHROPIC_API_KEY. Everything
+    else in this app works without it -- we degrade with a clear message rather
+    than pretending the button does something.
+    """
+    try:
+        import anthropic
+    except ImportError:
+        return None, ("The anthropic package isn't installed. "
+                      "Run: pip install anthropic")
+
+    if not (os.environ.get("ANTHROPIC_API_KEY")
+            or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
+        return None, ("No ANTHROPIC_API_KEY in the environment. "
+                      "Set it, then restart the server.")
+
+    if mode == "outline":
+        instruction = (
+            "Turn the following paper text into an Arabic episode outline with "
+            "these four headings, in Modern Standard Arabic:\n"
+            "الفكرة الأساسية / ماذا وجدت الدراسة / كيف اختبروها / ما الذي لا تعنيه هذه النتيجة\n"
+            "Under each heading write 2-4 short spoken-style sentences. Keep every "
+            "number, sample size and effect size exactly as stated. Do not add any "
+            "claim that is not in the text. Where the study is correlational, say so."
+        )
+    else:
+        instruction = (
+            "Translate the following research text into clear Modern Standard "
+            "Arabic for an educated non-specialist audience. Keep every number, "
+            "sample size, confidence interval and effect size exactly as given. "
+            "Keep technical terms accurate; give the English term in parentheses "
+            "the first time a specialist term appears. Do not add, soften, or "
+            "strengthen any claim."
+        )
+
+    try:
+        client = anthropic.Anthropic()
+        response = client.messages.create(
+            model="claude-opus-5",
+            max_tokens=16000,
+            output_config={"effort": "medium"},
+            system=(
+                "You translate medical and scientific research into Arabic for a "
+                "daily briefing. Accuracy outranks fluency: never overstate a "
+                "finding, never drop a caveat, never invent a number. Output only "
+                "the Arabic text, with no preamble and no English commentary."
+            ),
+            messages=[{"role": "user",
+                       "content": f"{instruction}\n\n---\n\n{text}"}],
+        )
+    except Exception as e:
+        return None, f"Claude API error: {e}"
+
+    # A refusal returns HTTP 200 with empty/partial content -- check before reading.
+    if getattr(response, "stop_reason", None) == "refusal":
+        return None, "The model declined to process this text."
+
+    out = "\n\n".join(b.text for b in response.content if b.type == "text").strip()
+    return (out, None) if out else (None, "Empty response from the model.")
 
 
 def epmc_references(src, pid):
@@ -337,13 +413,63 @@ class Handler(BaseHTTPRequestHandler):
             ok = start_fetch(body.get("days"), body.get("top"), body.get("topic"))
             return self.send_json({"started": ok, "active": _run["active"]})
 
+        if path == "/api/translate":
+            text = (body.get("text") or "").strip()
+            if not text:
+                return self.send_json({"error": "nothing to translate"}, 400)
+            if len(text) > 60000:
+                return self.send_json({"error": "text too long"}, 400)
+            arabic, err = translate_to_arabic(text, body.get("mode", "brief"))
+            if err:
+                return self.send_json({"error": err}, 501)
+            return self.send_json({"arabic": arabic})
+
+        if path == "/api/run/label":
+            date = os.path.basename(body.get("date") or "")
+            if not date:
+                return self.send_json({"error": "date required"}, 400)
+            with _state_lock:
+                state = load_state()
+                labels = state.setdefault("run_labels", {})
+                label = (body.get("label") or "").strip()
+                if label:
+                    labels[date] = label[:120]
+                else:
+                    labels.pop(date, None)
+                save_state(state)
+            return self.send_json({"ok": True})
+
+        if path == "/api/run/delete":
+            date = os.path.basename(body.get("date") or "")
+            if not date:
+                return self.send_json({"error": "date required"}, 400)
+            removed = []
+            for ext in (".json", ".md"):
+                target = os.path.join(OUT, date + ext)
+                # Deletes the generated shortlist only; data/state.json (the
+                # user's highlights, scripts and verdicts) is untouched.
+                if os.path.isfile(target):
+                    os.remove(target)
+                    removed.append(os.path.basename(target))
+            return self.send_json({"ok": True, "removed": removed})
+
         return self.send_json({"error": "not found"}, 404)
 
     def static(self, path):
         if path in ("/", ""):
             path = "/index.html"
-        target = os.path.normpath(os.path.join(WEB, path.lstrip("/")))
-        if not target.startswith(WEB) or not os.path.isfile(target):
+        if path == "/workspace":
+            path = "/workspace.html"
+
+        # out/ is served read-only so the home screen can link to raw shortlists.
+        if path.startswith("/out/"):
+            target = os.path.normpath(os.path.join(OUT, path[len("/out/"):]))
+            root = OUT
+        else:
+            target = os.path.normpath(os.path.join(WEB, path.lstrip("/")))
+            root = WEB
+
+        if not target.startswith(root) or not os.path.isfile(target):
             return self.send_json({"error": "not found"}, 404)
         ctype, _ = mimetypes.guess_type(target)
         with open(target, "rb") as f:

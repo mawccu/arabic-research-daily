@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Daily — demo</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <a class="backlink" href="index.html" title="Back to home">←</a>
+    <span class="dot"></span>
+    <strong>Research Daily</strong>
+    <select id="runSelect" class="ghost-select" title="Shortlist run"></select>
+  </div>
+
+  <div class="topbar-actions">
+    <span id="runStats" class="muted small"></span>
+    <button id="btnFetch" class="btn">Fetch new</button>
+    <button id="btnConfig" class="btn ghost" title="Edit scoring config">Config</button>
+    <button id="btnTheme" class="btn ghost icon" title="Toggle theme">◐</button>
+  </div>
+</header>
+
+<!-- ── action bar ────────────────────────────────────────── -->
+<div class="actionbar" id="actionBar">
+  <button class="act" id="actTranslate"><span>ع</span> Translate to Arabic</button>
+  <button class="act" id="actOutline"><span>❑</span> Arabic outline</button>
+  <div class="sep"></div>
+  <button class="act" id="actCite"><span>❝</span> Copy citation</button>
+  <button class="act" id="actExport"><span>↓</span> Export script</button>
+  <div class="sep"></div>
+  <button class="act" id="actPrompter"><span>▶</span> Teleprompter</button>
+  <button class="act" id="actPrint"><span>⎙</span> Print</button>
+  <div class="spacer"></div>
+  <span id="actStatus" class="muted small"></span>
+</div>
+
+<main class="layout" id="layout">
+
+  <!-- ── LEFT: shortlist ─────────────────────────────────── -->
+  <aside class="pane pane-list" id="paneList">
+    <div class="filters">
+      <input id="search" class="input" type="search" placeholder="Search title, journal, abstract…">
+
+      <div class="filter-row">
+        <select id="fVerdict" class="input small">
+          <option value="">All verdicts</option>
+          <option value="unset">Undecided</option>
+          <option value="shoot">Shoot</option>
+          <option value="hold">Hold</option>
+          <option value="kill">Kill</option>
+        </select>
+        <select id="fSort" class="input small">
+          <option value="score">Sort: score</option>
+          <option value="date">Sort: newest</option>
+          <option value="n">Sort: sample size</option>
+          <option value="cites">Sort: citations</option>
+          <option value="title">Sort: title</option>
+        </select>
+      </div>
+
+      <div class="filter-row">
+        <select id="fSource" class="input small">
+          <option value="">All sources</option>
+          <option value="europepmc">Europe PMC</option>
+          <option value="arxiv">arXiv</option>
+        </select>
+        <select id="fDesign" class="input small">
+          <option value="">Any design</option>
+          <option value="meta-analysis">Meta-analysis</option>
+          <option value="systematic review">Systematic review</option>
+          <option value="randomi">Randomised trial</option>
+          <option value="cohort">Cohort</option>
+          <option value="case-control">Case-control</option>
+        </select>
+      </div>
+
+      <div class="filter-row toggles">
+        <label class="chk"><input type="checkbox" id="fNoPreprint"> Peer-reviewed only</label>
+        <label class="chk"><input type="checkbox" id="fTier"> Tier 4–5 journals</label>
+      </div>
+
+      <div class="filter-row toggles">
+        <label class="rangelbl">min n
+          <input type="range" id="fMinN" min="0" max="6" step="1" value="0">
+          <span id="fMinNVal" class="muted small">any</span>
+        </label>
+      </div>
+
+      <div class="listmeta">
+        <span id="listCount" class="muted small"></span>
+        <button id="btnReset" class="linkbtn">reset</button>
+      </div>
+    </div>
+
+    <div id="list" class="list"></div>
+  </aside>
+
+  <div class="gutter" data-resize="list"></div>
+
+  <!-- ── CENTER: document ────────────────────────────────── -->
+  <section class="pane pane-doc">
+    <div class="doctabs">
+      <button class="tab active" data-doc="paper">Paper</button>
+      <button class="tab" data-doc="script">Script</button>
+      <div class="spacer"></div>
+      <div class="docmeta" id="docMeta"></div>
+    </div>
+
+    <div class="toolbar" id="paperTools">
+      <div class="hlcolors">
+        <button class="swatch" data-hl="y" style="--c:var(--hl-y)" title="Highlight — key finding"></button>
+        <button class="swatch" data-hl="g" style="--c:var(--hl-g)" title="Highlight — method"></button>
+        <button class="swatch" data-hl="p" style="--c:var(--hl-p)" title="Highlight — limitation"></button>
+        <button class="swatch" data-hl="r" style="--c:var(--hl-r)" title="Highlight — caution / red flag"></button>
+        <button class="swatch clear" data-hl="none" title="Remove highlight">⌫</button>
+      </div>
+      <div class="sep"></div>
+      <button class="btn ghost small" id="btnFulltext">Load full text</button>
+      <div class="sep"></div>
+      <label class="chk small"><input type="checkbox" id="fontBig"> Large type</label>
+      <div class="spacer"></div>
+      <span id="hlHint" class="muted small">select text, then pick a colour</span>
+    </div>
+
+    <div class="toolbar hidden" id="scriptTools">
+      <button class="btn ghost small" data-cmd="bold"><b>B</b></button>
+      <button class="btn ghost small" data-cmd="italic"><i>I</i></button>
+      <button class="btn ghost small" data-cmd="underline"><u>U</u></button>
+      <div class="sep"></div>
+      <button class="btn ghost small" data-block="h2">H2</button>
+      <button class="btn ghost small" data-block="h3">H3</button>
+      <button class="btn ghost small" data-block="p">¶</button>
+      <div class="sep"></div>
+      <button class="btn ghost small" data-cmd="insertUnorderedList">• list</button>
+      <button class="btn ghost small" data-block="blockquote">❝</button>
+      <div class="sep"></div>
+      <button class="btn ghost small" id="btnRtl" title="Arabic / right-to-left">عربي ⇄</button>
+      <button class="btn ghost small" id="btnPullQuotes" title="Insert highlighted lines as quotes">↧ highlights</button>
+      <div class="spacer"></div>
+      <span id="wordCount" class="muted small"></span>
+    </div>
+
+    <div class="docscroll">
+      <article id="paperDoc" class="page"></article>
+      <article id="scriptDoc" class="page hidden" contenteditable="true" spellcheck="false"></article>
+    </div>
+  </section>
+
+  <div class="gutter" data-resize="side"></div>
+
+  <!-- ── RIGHT: sources / highlights ─────────────────────── -->
+  <aside class="pane pane-side" id="paneSide">
+    <div class="sidetabs">
+      <button class="tab active" data-side="sources">Sources</button>
+      <button class="tab" data-side="highlights">Highlights <span id="hlCount" class="badge"></span></button>
+      <button class="tab" data-side="scoring">Scoring</button>
+      <button class="tab" data-side="checks">Checks</button>
+    </div>
+    <div class="sidebody">
+      <div class="sideview" data-view="sources"></div>
+      <div class="sideview hidden" data-view="highlights"></div>
+      <div class="sideview hidden" data-view="scoring"></div>
+      <div class="sideview hidden" data-view="checks"></div>
+    </div>
+  </aside>
+</main>
+
+<footer class="verdictbar" id="verdictBar">
+  <span class="muted small" id="saveState">saved</span>
+  <div class="spacer"></div>
+  <button class="btn verdict" data-verdict="shoot">☐ Shoot</button>
+  <button class="btn verdict" data-verdict="hold">☐ Hold</button>
+  <button class="btn verdict" data-verdict="kill">☐ Kill</button>
+</footer>
+
+<!-- ── teleprompter ──────────────────────────────────────── -->
+<div class="prompter hidden" id="prompter">
+  <div class="prompter-bar">
+    <button class="btn ghost small" id="ppPlay">▶ Play</button>
+    <label class="rangelbl">speed
+      <input type="range" id="ppSpeed" min="1" max="12" step="1" value="4">
+    </label>
+    <label class="rangelbl">size
+      <input type="range" id="ppSize" min="24" max="80" step="2" value="44">
+    </label>
+    <div class="spacer"></div>
+    <span class="muted small">space = play/pause · Esc = close</span>
+    <button class="btn ghost small" id="ppClose">✕</button>
+  </div>
+  <div class="prompter-scroll" id="ppScroll"><div class="prompter-text" id="ppText"></div></div>
+</div>
+
+<!-- ── modals ────────────────────────────────────────────── -->
+<div class="modal hidden" id="fetchModal">
+  <div class="modalbox">
+    <h3>Fetch new papers</h3>
+    <div class="formrow">
+      <label>Lookback days <input id="mDays" class="input small" type="number" value="3" min="1" max="60"></label>
+      <label>Shortlist size <input id="mTop" class="input small" type="number" value="10" min="3" max="60"></label>
+    </div>
+    <div class="formrow">
+      <label>Topic
+        <select id="mTopic" class="input small">
+          <option value="">All enabled topics</option>
+          <option value="medicine">medicine</option>
+          <option value="ai_cs">ai_cs</option>
+        </select>
+      </label>
+    </div>
+    <pre id="fetchLog" class="log"></pre>
+    <div class="modalactions">
+      <button class="btn ghost" data-close>Close</button>
+      <button class="btn primary" id="btnRunFetch">Run</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal hidden" id="configModal">
+  <div class="modalbox wide">
+    <h3>Scoring config</h3>
+    <p class="muted small">Edit and save. Takes effect on the next fetch.</p>
+    <textarea id="configText" class="code" spellcheck="false"></textarea>
+    <div class="modalactions">
+      <span id="configMsg" class="muted small"></span>
+      <div class="spacer"></div>
+      <button class="btn ghost" data-close>Cancel</button>
+      <button class="btn primary" id="btnSaveConfig">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="demo-data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
