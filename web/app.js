@@ -34,8 +34,9 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g,
   c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /* ── boot ─────────────────────────────────────────────── */
-
-init();
+/* init() is called at the BOTTOM of this file: it reads the DEMO const, and
+   const declarations are in the temporal dead zone until execution reaches
+   them, so calling it up here throws ReferenceError. */
 
 async function init() {
   const theme = localStorage.getItem('theme');
@@ -888,3 +889,5 @@ function wireKeys() {
 }
 
 window.addEventListener('beforeunload', flushSave);
+
+init();
